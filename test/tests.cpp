@@ -28,8 +28,6 @@ int main(int argc, char **argv) {
 	return RUN_ALL_TESTS();
 }
 
-
-
 TEST(block_store_create, create) {
 	block_store_t *bs = NULL;
 	bs = block_store_create();

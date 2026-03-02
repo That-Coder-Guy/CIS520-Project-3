@@ -10,14 +10,43 @@
 // remove it before you submit. Just allows things to compile initially.
 #define UNUSED(x) (void)(x)
 
+struct block_store
+{
+	bitmap_t* free_block_map;
+	size_t block_size;
+	size_t block_count;
+	uint8_t blocks[BLOCK_STORE_NUM_BLOCKS][BLOCK_SIZE_BYTES];
+};
+
 block_store_t *block_store_create()
 {
-	return NULL;
+	// Allocate memory for a block store structure
+	block_store_t* store = malloc(sizeof(block_store_t));
+	if (store == NULL) { return NULL; }
+	
+	// Initialize size attributes
+	store->block_size = BLOCK_SIZE_BYTES;
+	store->block_count = BLOCK_STORE_NUM_BLOCKS;
+
+	// Store the free block map in the middle blocks of the block store
+	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
+	if (store->free_block_map == NULL)
+	{
+		free(store);
+		return NULL;
+	}
+	bitmap_format(store->free_block_map, 0x00);
+
+	// Mark the blocks used to represent the free block map as taken to prevent overwriting
+	for (size_t i = 0; i < BITMAP_NUM_BLOCKS; i++) { bitmap_set(store->free_block_map, BITMAP_START_BLOCK + i); }
+
+	// Return the constructed block store
+	return store;
 }
 
-void block_store_destroy(block_store_t *const bs)
+void block_store_destroy(block_store_t* const bs)
 {
-	UNUSED(bs);
+	free(bs);
 }
 
 size_t block_store_allocate(block_store_t *const bs)
