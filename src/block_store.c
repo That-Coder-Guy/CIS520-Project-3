@@ -10,6 +10,11 @@
 // remove it before you submit. Just allows things to compile initially.
 #define UNUSED(x) (void)(x)
 
+// This declares the block store structure with an integrated free block map
+// \attribute: free_block_map - A bitmap representing all curently free storage blocks
+// \attribute: block_size - The size of every block in the block store
+// \attribute: block_count - The number of blocks in the block store
+// \attribute: blocks - An array of memory blocks to store data in
 struct block_store
 {
 	bitmap_t* free_block_map;
@@ -18,6 +23,8 @@ struct block_store
 	uint8_t blocks[BLOCK_STORE_NUM_BLOCKS][BLOCK_SIZE_BYTES];
 };
 
+/// This creates a new BS device, ready to go
+/// \return Pointer to a new block storage device, NULL on error
 block_store_t *block_store_create()
 {
 	// Allocate memory for a block store structure
@@ -44,6 +51,9 @@ block_store_t *block_store_create()
 	return store;
 }
 
+/// Destroys the provided block storage device
+/// This is an idempotent operation, so there is no return value
+/// \param: bs - The block storage device
 void block_store_destroy(block_store_t* const bs)
 {
 	free(bs);
