@@ -20,7 +20,7 @@ struct block_store
 	bitmap_t* free_block_map;
 	size_t block_size;
 	size_t block_count;
-	uint8_t blocks[BLOCK_STORE_NUM_BLOCKS][BLOCK_SIZE_BYTES];
+	uint8_t* blocks;
 };
 
 /// This creates a new BS device, ready to go
@@ -31,14 +31,23 @@ block_store_t *block_store_create()
 	block_store_t* store = malloc(sizeof(block_store_t));
 	if (store == NULL) { return NULL; }
 	
+	// Allocate memory for a blocks array
+	store->blocks = malloc(BLOCK_STORE_NUM_BYTES);
+	if (store->blocks == NULL)
+	{
+		free(store);
+		return NULL;
+	}
+
 	// Initialize size attributes
 	store->block_size = BLOCK_SIZE_BYTES;
 	store->block_count = BLOCK_STORE_NUM_BLOCKS;
 
 	// Store the free block map in the middle blocks of the block store
-	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
+	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BLOCK_SIZE_BYTES * BITMAP_START_BLOCK]);
 	if (store->free_block_map == NULL)
 	{
+		free(store->blocks);
 		free(store);
 		return NULL;
 	}
@@ -56,6 +65,7 @@ block_store_t *block_store_create()
 /// \param: bs - The block storage device
 void block_store_destroy(block_store_t* const bs)
 {
+	free(bs->blocks);
 	free(bs);
 }
 
