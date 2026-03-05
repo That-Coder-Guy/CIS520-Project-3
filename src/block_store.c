@@ -44,7 +44,7 @@ block_store_t *block_store_create()
 	store->block_count = BLOCK_STORE_NUM_BLOCKS;
 
 	// Store the free block map in the middle blocks of the block store
-	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BLOCK_SIZE_BYTES * BITMAP_START_BLOCK]);
+	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks + (BLOCK_SIZE_BYTES * BITMAP_START_BLOCK));
 	if (store->free_block_map == NULL)
 	{
 		free(store->blocks);
@@ -65,6 +65,11 @@ block_store_t *block_store_create()
 /// \param: bs - The block storage device
 void block_store_destroy(block_store_t* const bs)
 {
+	// Validate input value
+	if (bs == NULL) { return; }
+
+	// Free the block storage device
+	bitmap_destroy(bs->free_block_map);
 	free(bs->blocks);
 	free(bs);
 }
