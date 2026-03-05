@@ -12,42 +12,25 @@
 
 // This declares the block store structure with an integrated free block map
 // \attribute: free_block_map - A bitmap representing all curently free storage blocks
-// \attribute: block_size - The size of every block in the block store
-// \attribute: block_count - The number of blocks in the block store
 // \attribute: blocks - An array of memory blocks to store data in
 struct block_store
 {
 	bitmap_t* free_block_map;
-	size_t block_size;
-	size_t block_count;
-	uint8_t* blocks;
+	uint8_t blocks[BLOCK_STORE_NUM_BLOCKS][BLOCK_SIZE_BYTES];
 };
 
-/// This creates a new BS device, ready to go
-/// \return Pointer to a new block storage device, NULL on error
+/// This creates a new block store device, ready to go
+/// \return Pointer to a new block store device, NULL on error
 block_store_t *block_store_create()
 {
 	// Allocate memory for a block store structure
 	block_store_t* store = malloc(sizeof(block_store_t));
 	if (store == NULL) { return NULL; }
-	
-	// Allocate memory for a blocks array
-	store->blocks = malloc(BLOCK_STORE_NUM_BYTES);
-	if (store->blocks == NULL)
-	{
-		free(store);
-		return NULL;
-	}
-
-	// Initialize size attributes
-	store->block_size = BLOCK_SIZE_BYTES;
-	store->block_count = BLOCK_STORE_NUM_BLOCKS;
 
 	// Store the free block map in the middle blocks of the block store
-	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks + (BLOCK_SIZE_BYTES * BITMAP_START_BLOCK));
+	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
 	if (store->free_block_map == NULL)
 	{
-		free(store->blocks);
 		free(store);
 		return NULL;
 	}
@@ -60,37 +43,68 @@ block_store_t *block_store_create()
 	return store;
 }
 
-/// Destroys the provided block storage device
+/// Destroys the provided block store device
 /// This is an idempotent operation, so there is no return value
-/// \param: bs - The block storage device
+/// \param: bs - A block storage device
 void block_store_destroy(block_store_t* const bs)
 {
 	// Validate input value
 	if (bs == NULL) { return; }
 
-	// Free the block storage device
-	bitmap_destroy(bs->free_block_map);
-	free(bs->blocks);
+	// Free the block store device
+	if (bs->free_block_map != NULL) { bitmap_destroy(bs->free_block_map); }
 	free(bs);
 }
 
+/// Searches for a free block, marks it as in use, and returns the block's id
+/// \param: bs - A block store device
+/// \return: Allocated block's id, SIZE_MAX on error
 size_t block_store_allocate(block_store_t *const bs)
 {
-	UNUSED(bs);
-	return 0;
+	// Validate input value
+	if (bs == NULL || bs->free_block_map == NULL) { return SIZE_MAX; }
+
+	// Identify the first 0 bit in the bit map and use its index as a block ID
+	size_t block_id = bitmap_ffz(bs->free_block_map);
+	if (block_id == SIZE_MAX) { return SIZE_MAX; }
+
+	// Mark the block with the acquired ID as in use
+	bitmap_set(bs->free_block_map, block_id);
+
+	// Return the acquired block ID
+	return block_id;
 }
 
+/// Attempts to allocate the requested block id
+/// \param: bs - A block store device
+/// \param: block_id - The requested block identifier
+/// \return: Boolean indicating success of operation
 bool block_store_request(block_store_t *const bs, const size_t block_id)
 {
-	UNUSED(bs);
-	UNUSED(block_id);
-	return false;
+	// Validate input values
+	if (bs == NULL || bs->free_block_map == NULL) { return false; }
+	if (block_id >= BLOCK_STORE_NUM_BLOCKS) { return false; }
+
+	// Return failure if the block is marked as in use
+	if (bitmap_test(bs->free_block_map, block_id)) { return false; }
+	
+	// Mark the block with the acquired ID as in use
+	bitmap_set(bs->free_block_map, block_id);
+
+	return true;
 }
 
+/// Frees the specified block
+/// \param: bs - A block store device
+/// \param: block_id - The block to free
 void block_store_release(block_store_t *const bs, const size_t block_id)
 {
-	UNUSED(bs);
-	UNUSED(block_id);
+	// Validate input values
+	if (bs == NULL || bs->free_block_map == NULL) { return; }
+	if (block_id >= BLOCK_STORE_NUM_BLOCKS) { return; }
+	
+	// Mark the block with the prodived ID as unused
+	bitmap_reset(bs->free_block_map, block_id);
 }
 
 size_t block_store_get_used_blocks(const block_store_t *const bs)
@@ -107,7 +121,7 @@ size_t block_store_get_free_blocks(const block_store_t *const bs)
 
 size_t block_store_get_total_blocks()
 {
-	return 0;
+	return BLOCK_STORE_NUM_BLOCKS;
 }
 
 size_t block_store_read(const block_store_t *const bs, const size_t block_id, void *buffer)
