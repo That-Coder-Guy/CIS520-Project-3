@@ -37,7 +37,14 @@ block_store_t *block_store_create()
 	bitmap_format(store->free_block_map, 0x00);
 
 	// Mark the blocks used to represent the free block map as taken to prevent overwriting
-	for (size_t i = 0; i < BITMAP_NUM_BLOCKS; i++) { bitmap_set(store->free_block_map, BITMAP_START_BLOCK + i); }
+	for (size_t block_id = BITMAP_START_BLOCK; block_id < BITMAP_START_BLOCK + BITMAP_NUM_BLOCKS; block_id++)
+	{
+		if (!block_store_request(store, block_id))
+		{
+			bitmap_destroy(store->free_block_map);
+			free(store);
+		}
+	}
 
 	// Return the constructed block store
 	return store;
@@ -102,6 +109,7 @@ void block_store_release(block_store_t *const bs, const size_t block_id)
 	// Validate input values
 	if (bs == NULL || bs->free_block_map == NULL) { return; }
 	if (block_id >= BLOCK_STORE_NUM_BLOCKS) { return; }
+	if (BITMAP_START_BLOCK >= block_id && block_id >= BITMAP_START_BLOCK + BLOCK_STORE_NUM_BLOCKS) { return; }
 	
 	// Mark the block with the prodived ID as unused
 	bitmap_reset(bs->free_block_map, block_id);
