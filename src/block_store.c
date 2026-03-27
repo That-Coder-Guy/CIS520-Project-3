@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdint.h>
-
+#include <string.h>
 #include "bitmap.h"
 #include "block_store.h"
+
 // include more if you need
 
 
@@ -37,14 +38,7 @@ block_store_t *block_store_create()
 	bitmap_format(store->free_block_map, 0x00);
 
 	// Mark the blocks used to represent the free block map as taken to prevent overwriting
-	for (size_t block_id = BITMAP_START_BLOCK; block_id < BITMAP_START_BLOCK + BITMAP_NUM_BLOCKS; block_id++)
-	{
-		if (!block_store_request(store, block_id))
-		{
-			bitmap_destroy(store->free_block_map);
-			free(store);
-		}
-	}
+	for (size_t i = 0; i < BITMAP_NUM_BLOCKS; i++) { bitmap_set(store->free_block_map, BITMAP_START_BLOCK + i); }
 
 	// Return the constructed block store
 	return store;
@@ -109,7 +103,6 @@ void block_store_release(block_store_t *const bs, const size_t block_id)
 	// Validate input values
 	if (bs == NULL || bs->free_block_map == NULL) { return; }
 	if (block_id >= BLOCK_STORE_NUM_BLOCKS) { return; }
-	if (BITMAP_START_BLOCK >= block_id && block_id >= BITMAP_START_BLOCK + BLOCK_STORE_NUM_BLOCKS) { return; }
 	
 	// Mark the block with the prodived ID as unused
 	bitmap_reset(bs->free_block_map, block_id);
@@ -117,14 +110,34 @@ void block_store_release(block_store_t *const bs, const size_t block_id)
 
 size_t block_store_get_used_blocks(const block_store_t *const bs)
 {
-	UNUSED(bs);
-	return 0;
+	if(bs == NULL || bs->free_block_map==NULL) return SIZE_MAX;
+
+	size_t count = 0;
+	
+	for (size_t i = 0; i< BLOCK_STORE_NUM_BLOCKS; i++)
+	{
+
+		if(bitmap_test(bs->free_block_map,i)) 
+		{
+			count++;
+		}
+	}
+	
+	return count;
 }
 
 size_t block_store_get_free_blocks(const block_store_t *const bs)
 {
-	UNUSED(bs);
-	return 0;
+	
+	if(bs ==NULL || bs->free_block_map == NULL)
+	{
+		return SIZE_MAX;
+	}
+	
+	size_t used = block_store_get_used_blocks(bs);
+	if(used == SIZE_MAX) return SIZE_MAX;
+
+	return BLOCK_STORE_NUM_BLOCKS - used;
 }
 
 size_t block_store_get_total_blocks()
@@ -134,10 +147,23 @@ size_t block_store_get_total_blocks()
 
 size_t block_store_read(const block_store_t *const bs, const size_t block_id, void *buffer)
 {
-	UNUSED(bs);
-	UNUSED(block_id);
-	UNUSED(buffer);
-	return 0;
+	if(bs == NULL || bs->free_block_map == NULL || buffer == NULL) 
+	{
+		return 0; 
+	}
+	
+	if(block_id >= BLOCK_STORE_NUM_BLOCKS)
+	{
+		return 0;
+	}
+
+	if(!bitmap_test(bs->free_block_map,block_id))
+	{
+		return 0;
+	}
+
+	memcpy(buffer, bs->blocks[block_id], BLOCK_SIZE_BYTES);
+	return BLOCK_SIZE_BYTES;
 }
 
 size_t block_store_write(block_store_t *const bs, const size_t block_id, const void *buffer)
