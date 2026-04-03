@@ -166,23 +166,103 @@ size_t block_store_read(const block_store_t *const bs, const size_t block_id, vo
 	return BLOCK_SIZE_BYTES;
 }
 
+/// Reads data from the specified buffer and writes it to the designated block
+/// \param bs BS device
+/// \param block_id Destination block id
+/// \param buffer Data buffer to read from
+/// \return Number of bytes written, 0 on error
 size_t block_store_write(block_store_t *const bs, const size_t block_id, const void *buffer)
 {
-	UNUSED(bs);
-	UNUSED(block_id);
-	UNUSED(buffer);
-	return 0;
+	
+	if(bs == NULL || bs->free_block_map == NULL || buffer == NULL) 
+	{
+		return 0; 
+	}
+	
+	if(block_id >= BLOCK_STORE_NUM_BLOCKS)
+	{
+		return 0;
+	}
+
+	if(!bitmap_test(bs->free_block_map,block_id))
+	{
+		return 0;
+	}
+
+	memcpy(bs->blocks[block_id], buffer, BLOCK_SIZE_BYTES);
+	return BLOCK_SIZE_BYTES;
 }
 
+/// Imports BS device from the given file - for grads/bonus
+/// \param filename The file to load
+/// \return Pointer to new BS device, NULL on error
 block_store_t *block_store_deserialize(const char *const filename)
 {
-	UNUSED(filename);
-	return NULL;
+	if (filename == NULL || *filename == '\n' || *filename == '\0') return NULL;
+
+	int fd = open(filename, O_RDONLY);
+	if (fd < 0) return NULL;
+
+	block_store_t *store = malloc(sizeof(block_store_t));
+	if (store == NULL)
+	{
+		close(fd);
+		return NULL;
+	}
+
+	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
+	if (store->free_block_map == NULL)
+	{
+		free(store);
+		close(fd);
+		return NULL;
+	}
+
+	ssize_t total_read = 0;
+	while (total_read < BLOCK_STORE_NUM_BYTES)
+	{
+		ssize_t bytes_read = read(fd, ((uint8_t *)store->blocks) + total_read, BLOCK_STORE_NUM_BYTES - total_read);
+
+		if (bytes_read <= 0)
+		{
+			bitmap_destroy(store->free_block_map);
+			free(store);
+			close(fd);
+			return NULL;
+		}
+
+		total_read += bytes_read;
+	}
+
+	close(fd);
+	return store;
 }
 
+/// Writes the entirety of the BS device to file, overwriting it if it exists - for grads/bonus
+/// \param bs BS device
+/// \param filename The file to write to
+/// \return Number of bytes written, 0 on error
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
 {
-	UNUSED(bs);
-	UNUSED(filename);
-	return 0;
+	if (bs == NULL || bs->free_block_map == NULL || filename == NULL || *filename == '\n' || *filename == '\0') return 0;
+
+	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
+	if (fd < 0) return 0;
+
+	ssize_t total_written = 0;
+	while (total_written < BLOCK_STORE_NUM_BYTES)
+	{
+		ssize_t bytes_written = write(fd, ((const uint8_t *)bs->blocks) + total_written, BLOCK_STORE_NUM_BYTES - total_written);
+
+		if (bytes_written <= 0)
+		{
+			close(fd);
+			return 0;
+		}
+
+		total_written += bytes_written;
+	}
+
+	close(fd);
+	return total_written;
 }
