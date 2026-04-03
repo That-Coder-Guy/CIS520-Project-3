@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "bitmap.h"
 #include "block_store.h"
 
