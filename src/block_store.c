@@ -207,13 +207,7 @@ block_store_t *block_store_deserialize(const char *const filename)
 	block_store_t *store = malloc(sizeof(block_store_t));
 	if (store == NULL) { return NULL;}
 
-	// Create a free block map for the block store
-	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
-	if (store->free_block_map == NULL)
-	{
-		free(store);
-		return NULL;
-	}
+
 	
 	// Loop until all bytes in the file are read to the block store
 	size_t total_bytes_read = 0;
@@ -238,6 +232,14 @@ block_store_t *block_store_deserialize(const char *const filename)
 		// Else an error has occured or EOF has been reached therefore the loop should be exited
 		else
 			break;
+	}
+
+	// Create a free block map for the block store
+	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
+	if (store->free_block_map == NULL)
+	{
+		free(store);
+		return NULL;
 	}
 
 	// Close the file handle
