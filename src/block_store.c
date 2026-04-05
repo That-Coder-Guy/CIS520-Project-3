@@ -19,7 +19,7 @@ struct block_store
 };
 
 /// This creates a new block store device, ready to go
-/// \return Pointer to a new block store device, NULL on error
+/// \return: Pointer to a new block store device, NULL on error
 block_store_t *block_store_create()
 {
 	// Allocate memory for a block store structure
@@ -165,10 +165,10 @@ size_t block_store_read(const block_store_t *const bs, const size_t block_id, vo
 }
 
 /// Reads data from the specified buffer and writes it to the designated block
-/// \param bs BS device
-/// \param block_id Destination block id
-/// \param buffer Data buffer to read from
-/// \return Number of bytes written, 0 on error
+/// \param: bs - BS device
+/// \param: block_id - Destination block id
+/// \param: buffer - Data buffer to read from
+/// \return: Number of bytes written, 0 on error
 size_t block_store_write(block_store_t *const bs, const size_t block_id, const void *buffer)
 {
 	
@@ -192,19 +192,22 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
 }
 
 /// Imports BS device from the given file - for grads/bonus
-/// \param filename The file to load
-/// \return Pointer to new BS device, NULL on error
+/// \param: filename - The file to load
+/// \return: Pointer to new BS device, NULL on error
 block_store_t *block_store_deserialize(const char *const filename)
 {	
 	// Validate input values
 	if (filename == NULL || (filename[0] == '\n' && filename[1] == '\0')) { return NULL; }
 
+	// Open input file for reading
 	int fd = open(filename, O_RDONLY);
 	if (fd < 0) { return NULL; }
 
+	// Create a new block store
 	block_store_t *store = malloc(sizeof(block_store_t));
 	if (store == NULL) { return NULL;}
 
+	// Create a free block map for the block store
 	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
 	if (store->free_block_map == NULL)
 	{
@@ -222,6 +225,13 @@ block_store_t *block_store_deserialize(const char *const filename)
 		// If bytes were read increment the total
 		if (bytes_read > 0)
 			total_bytes_read += bytes_read;
+		else if (bytes_read == 0)
+		{
+			close(fd);
+			free(store);
+			return NULL;
+		}
+
 		// If a system interrupt occured skip to the next iteration
 		else if (bytes_read == -1 && errno == EINTR)
 			continue;
@@ -231,20 +241,25 @@ block_store_t *block_store_deserialize(const char *const filename)
 	}
 
 	// Close the file handle
-	if (close(fd) < 0) { return NULL; }
+	if (close(fd) < 0)
+	{
+		free(store);
+		return NULL;
+	}
 	return store;
 }
 
 /// Writes the entirety of the BS device to file, overwriting it if it exists - for grads/bonus
-/// \param bs BS device
-/// \param filename The file to write to
-/// \return Number of bytes written, 0 on error
+/// \param: bs - BS device
+/// \param: filename - The file to write to
+/// \return: Number of bytes written, 0 on error
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
 {
 	// Validate input values
 	if (bs == NULL || bs->free_block_map == NULL || filename == NULL) { return 0; }
 	if (filename[0] == '\n' && filename[1] == '\0') { return 0; }
 
+	// Open output file for writing
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
 	if (fd < 0) return 0;
 
@@ -258,6 +273,11 @@ size_t block_store_serialize(const block_store_t *const bs, const char *const fi
 		// If bytes were written increment the total
 		if (bytes_written > 0)
 			total_bytes_written += bytes_written;
+		else if (bytes_written == 0)
+		{
+			close(fd);
+			return 0;
+		}
 		// If a system interrupt occured skip to the next iteration
 		else if (bytes_written == -1 && errno == EINTR)
 			continue;
