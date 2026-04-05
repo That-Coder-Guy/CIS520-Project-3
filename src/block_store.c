@@ -209,7 +209,9 @@ block_store_t *block_store_deserialize(const char *const filename)
 	block_store_t *store = malloc(sizeof(block_store_t));
 	if (store == NULL)
 	{
-		close(fd);
+		if (close(fd) < 0) {
+    		perror("close failed");
+		}
 		return NULL;
 	}
 
@@ -217,7 +219,9 @@ block_store_t *block_store_deserialize(const char *const filename)
 	if (store->free_block_map == NULL)
 	{
 		free(store);
-		close(fd);
+		if (close(fd) < 0) {
+    		perror("close failed");
+		}
 		return NULL;
 	}
 
@@ -230,14 +234,18 @@ block_store_t *block_store_deserialize(const char *const filename)
 		{
 			bitmap_destroy(store->free_block_map);
 			free(store);
-			close(fd);
+			if (close(fd) < 0) {
+    			perror("close failed");
+			}
 			return NULL;
 		}
 
 		total_read += bytes_read;
 	}
 
-	close(fd);
+	if (close(fd) < 0) {
+		perror("close failed");
+	}
 	return store;
 }
 
@@ -259,13 +267,17 @@ size_t block_store_serialize(const block_store_t *const bs, const char *const fi
 
 		if (bytes_written <= 0)
 		{
-			close(fd);
+			if (close(fd) < 0) {
+    			perror("close failed");
+			}
 			return 0;
 		}
 
 		total_written += bytes_written;
 	}
 
-	close(fd);
+	if (close(fd) < 0) {
+		perror("close failed");
+	}
 	return total_written;
 }
