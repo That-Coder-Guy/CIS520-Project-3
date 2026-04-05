@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -7,12 +8,6 @@
 #include "bitmap.h"
 #include "block_store.h"
 
-// include more if you need
-
-
-// You might find this handy. I put it around unused parameters, but you should
-// remove it before you submit. Just allows things to compile initially.
-#define UNUSED(x) (void)(x)
 
 // This declares the block store structure with an integrated free block map
 // \attribute: free_block_map - A bitmap representing all curently free storage blocks
@@ -200,52 +195,43 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
 /// \param filename The file to load
 /// \return Pointer to new BS device, NULL on error
 block_store_t *block_store_deserialize(const char *const filename)
-{
-	if (filename == NULL || *filename == '\n' || *filename == '\0') return NULL;
+{	
+	// Validate input values
+	if (filename == NULL || (filename[0] == '\n' && filename[1] == '\0')) { return NULL; }
 
 	int fd = open(filename, O_RDONLY);
-	if (fd < 0) return NULL;
+	if (fd < 0) { return NULL; }
 
 	block_store_t *store = malloc(sizeof(block_store_t));
-	if (store == NULL)
-	{
-		if (close(fd) < 0) {
-    		perror("close failed");
-		}
-		return NULL;
-	}
+	if (store == NULL) { return NULL;}
 
 	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
 	if (store->free_block_map == NULL)
 	{
 		free(store);
-		if (close(fd) < 0) {
-    		perror("close failed");
-		}
 		return NULL;
 	}
-
-	ssize_t total_read = 0;
-	while (total_read < BLOCK_STORE_NUM_BYTES)
+	
+	// Loop until all bytes in the file are read to the block store
+	size_t total_bytes_read = 0;
+	while (total_bytes_read < BLOCK_STORE_NUM_BYTES)
 	{
-		ssize_t bytes_read = read(fd, ((uint8_t *)store->blocks) + total_read, BLOCK_STORE_NUM_BYTES - total_read);
-
-		if (bytes_read <= 0)
-		{
-			bitmap_destroy(store->free_block_map);
-			free(store);
-			if (close(fd) < 0) {
-    			perror("close failed");
-			}
-			return NULL;
-		}
-
-		total_read += bytes_read;
+		// Make a read request to the kernel
+		ssize_t bytes_read = read(fd, store->blocks + total_bytes_read, BLOCK_STORE_NUM_BYTES - total_bytes_read);
+		
+		// If bytes were read increment the total
+		if (bytes_read > 0)
+			total_bytes_read += bytes_read;
+		// If a system interrupt occured skip to the next iteration
+		else if (bytes_read == -1 && errno == EINTR)
+			continue;
+		// Else an error has occured or EOF has been reached therefore the loop should be exited
+		else
+			break;
 	}
 
-	if (close(fd) < 0) {
-		perror("close failed");
-	}
+	// Close the file handle
+	if (close(fd) < 0) { return NULL; }
 	return store;
 }
 
@@ -255,29 +241,32 @@ block_store_t *block_store_deserialize(const char *const filename)
 /// \return Number of bytes written, 0 on error
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
 {
-	if (bs == NULL || bs->free_block_map == NULL || filename == NULL || *filename == '\n' || *filename == '\0') return 0;
+	// Validate input values
+	if (bs == NULL || bs->free_block_map == NULL || filename == NULL) { return 0; }
+	if (filename[0] == '\n' && filename[1] == '\0') { return 0; }
 
 	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
 	if (fd < 0) return 0;
 
-	ssize_t total_written = 0;
-	while (total_written < BLOCK_STORE_NUM_BYTES)
+	// Loop until all bytes in the block store are written to the output file
+	size_t total_bytes_written = 0;
+	while (total_bytes_written < BLOCK_STORE_NUM_BYTES)
 	{
-		ssize_t bytes_written = write(fd, ((const uint8_t *)bs->blocks) + total_written, BLOCK_STORE_NUM_BYTES - total_written);
-
-		if (bytes_written <= 0)
-		{
-			if (close(fd) < 0) {
-    			perror("close failed");
-			}
-			return 0;
-		}
-
-		total_written += bytes_written;
+		// Make a write request to the kernel
+		ssize_t bytes_written = write(fd, bs->blocks + total_bytes_written, BLOCK_STORE_NUM_BYTES - total_bytes_written);
+		
+		// If bytes were written increment the total
+		if (bytes_written > 0)
+			total_bytes_written += bytes_written;
+		// If a system interrupt occured skip to the next iteration
+		else if (bytes_written == -1 && errno == EINTR)
+			continue;
+		// Else an error has occured and the loop should be exited
+		else
+			break;
 	}
 
-	if (close(fd) < 0) {
-		perror("close failed");
-	}
-	return total_written;
+	// Return the number bytes written on successful file close
+	if (close(fd) < 0) { return 0; }
+	return total_bytes_written;
 }
