@@ -20,7 +20,7 @@ struct block_store
 
 /// This creates a new block store device, ready to go
 /// \return: Pointer to a new block store device, NULL on error
-block_store_t *block_store_create()
+block_store_t* block_store_create()
 {
 	// Allocate memory for a block store structure
 	block_store_t* store = malloc(sizeof(block_store_t));
@@ -194,7 +194,7 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
 /// Imports BS device from the given file - for grads/bonus
 /// \param: filename - The file to load
 /// \return: Pointer to new BS device, NULL on error
-block_store_t *block_store_deserialize(const char *const filename)
+block_store_t* block_store_deserialize(const char *const filename)
 {	
 	// Validate input values
 	if (filename == NULL || (filename[0] == '\n' && filename[1] == '\0')) { return NULL; }
@@ -204,17 +204,19 @@ block_store_t *block_store_deserialize(const char *const filename)
 	if (fd < 0) { return NULL; }
 
 	// Create a new block store
-	block_store_t *store = malloc(sizeof(block_store_t));
-	if (store == NULL) { return NULL;}
-
-
+	block_store_t* store = block_store_create();
+	if (store == NULL)
+	{
+		close(fd);
+		return NULL;
+	}
 	
 	// Loop until all bytes in the file are read to the block store
 	size_t total_bytes_read = 0;
 	while (total_bytes_read < BLOCK_STORE_NUM_BYTES)
 	{
 		// Make a read request to the kernel
-		ssize_t bytes_read = read(fd, store->blocks + total_bytes_read, BLOCK_STORE_NUM_BYTES - total_bytes_read);
+		ssize_t bytes_read = read(fd, (uint8_t*)store->blocks + total_bytes_read, BLOCK_STORE_NUM_BYTES - total_bytes_read);
 		
 		// If bytes were read increment the total
 		if (bytes_read > 0)
@@ -222,7 +224,7 @@ block_store_t *block_store_deserialize(const char *const filename)
 		else if (bytes_read == 0)
 		{
 			close(fd);
-			free(store);
+			block_store_destroy(store);
 			return NULL;
 		}
 
@@ -234,18 +236,10 @@ block_store_t *block_store_deserialize(const char *const filename)
 			break;
 	}
 
-	// Create a free block map for the block store
-	store->free_block_map = bitmap_overlay(BITMAP_SIZE_BITS, store->blocks[BITMAP_START_BLOCK]);
-	if (store->free_block_map == NULL)
-	{
-		free(store);
-		return NULL;
-	}
-
 	// Close the file handle
-	if (close(fd) < 0)
+	if (close(fd) < 0 || total_bytes_read < BLOCK_STORE_NUM_BYTES)
 	{
-		free(store);
+		block_store_destroy(store);
 		return NULL;
 	}
 	return store;
@@ -275,7 +269,7 @@ size_t block_store_serialize(const block_store_t *const bs, const char *const fi
 	while (total_bytes_written < BLOCK_STORE_NUM_BYTES)
 	{
 		// Make a write request to the kernel
-		ssize_t bytes_written = write(fd, bs->blocks + total_bytes_written, BLOCK_STORE_NUM_BYTES - total_bytes_written);
+		ssize_t bytes_written = write(fd, (uint8_t*)bs->blocks + total_bytes_written, BLOCK_STORE_NUM_BYTES - total_bytes_written);
 		
 		// If bytes were written increment the total
 		if (bytes_written > 0)
@@ -293,7 +287,8 @@ size_t block_store_serialize(const block_store_t *const bs, const char *const fi
 			break;
 	}
 
-	// Return the number bytes written on successful file close
+	// Close the file descriptor
 	if (close(fd) < 0) { return 0; }
-	return total_bytes_written;
+
+	return total_bytes_written < BLOCK_STORE_NUM_BYTES ? 0 : total_bytes_written;
 }
