@@ -262,8 +262,13 @@ size_t block_store_serialize(const block_store_t *const bs, const char *const fi
 	if (filename[0] == '\n' && filename[1] == '\0') { return 0; }
 
 	// Open output file for writing
-	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
-	if (fd < 0) return 0;
+	int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+	if (fd < 0)
+	{
+		fprintf(stderr, "Error opening %s: ", filename);
+        perror("");
+		return 0;
+	}
 
 	// Loop until all bytes in the block store are written to the output file
 	size_t total_bytes_written = 0;

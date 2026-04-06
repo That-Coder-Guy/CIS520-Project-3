@@ -1,0 +1,1 @@
+/opt/software/software/GCCcore/11.2.0/bin/cc -fPIC -std=c11 -Wall -Wextra -Wshadow -Werror -D_XOPEN_SOURCE=500 -shared -Wl,-soname,libblock_store.so -o libblock_store.so CMakeFiles/block_store.dir/src/bitmap.c.o CMakeFiles/block_store.dir/src/block_store.c.o 
